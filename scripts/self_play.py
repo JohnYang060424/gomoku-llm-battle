@@ -91,13 +91,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="五子棋 LLM 对战运行器（三局两胜）")
     parser.add_argument("--black", default="heuristic:1.0", help="黑方棋手规格")
     parser.add_argument("--white", default="heuristic:1.2", help="白方棋手规格")
+    parser.add_argument("--black-name", default=None, help="黑方显示名（默认使用规格字符串）")
+    parser.add_argument("--white-name", default=None, help="白方显示名（默认使用规格字符串）")
     parser.add_argument("--best-of", type=int, default=3, help="系列赛局数（奇数）")
     parser.add_argument("--out", default=os.path.join(ROOT, "games", "series.json"),
                         help="系列赛 JSON 日志输出路径")
     args = parser.parse_args()
 
-    black = build_player(args.black, name=args.black, color=Stone.BLACK)
-    white = build_player(args.white, name=args.white, color=Stone.WHITE)
+    black = build_player(args.black, name=args.black_name or args.black, color=Stone.BLACK)
+    white = build_player(args.white, name=args.white_name or args.white, color=Stone.WHITE)
 
     referee = Referee(black, white)
     try:
