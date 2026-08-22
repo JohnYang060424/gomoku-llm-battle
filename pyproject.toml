@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gomoku-llm-battle"
-version = "0.3.0"
+version = "0.3.1"
 description = "高质量五子棋 LLM 对战框架：裁判 + 双棋手接口（LLM/启发式/控制台）+ 三局两胜系列赛，零第三方依赖，可直接开源。"
 readme = "README.md"
 requires-python = ">=3.9"
