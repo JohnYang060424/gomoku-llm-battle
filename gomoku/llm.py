@@ -23,6 +23,7 @@ def call_chat_completion(
     *,
     temperature: float = config.LLM_TEMPERATURE,
     timeout: int = config.LLM_TIMEOUT,
+    max_tokens: int = config.LLM_MAX_TOKENS,
     return_raw: bool = False,
 ) -> Union[str, Tuple[str, Dict[str, Any]]]:
     """调用一次聊天补全。
@@ -30,12 +31,14 @@ def call_chat_completion(
     默认返回助手消息中提取的纯文本（已兼容 reasoning 字段的推理模型）；
     当 return_raw=True 时返回 (text, message_dict) 元组，message_dict 含
     content / reasoning 等原始字段，供上层做复盘日志。
+    max_tokens 限制响应长度，防止推理模型 thinking 过长导致超时。
     """
     url = api_base.rstrip("/") + "/chat/completions"
     payload = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
+        "max_tokens": max_tokens,
     }
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -100,7 +103,7 @@ def _extract_move_text(message: Dict[str, Any]) -> Optional[str]:
     content = message.get("content")
     if isinstance(content, str) and content.strip():
         return content
-    reasoning = message.get("reasoning") or ""
+    reasoning = message.get("reasoning") or message.get("reasoning_content") or ""
     if isinstance(reasoning, str):
         matches = re.findall(r"(\d+)\s*,\s*(\d+)", reasoning)
         if matches:
