@@ -30,9 +30,10 @@ SCORE_ONE = 10               # 单子
 DEFENSE_WEIGHT = 1.0
 
 # 自对弈 / LLM 调用相关默认参数
-LLM_TIMEOUT = 60             # LLM 接口单次请求超时（秒，推理模型较慢需留足）
+LLM_TIMEOUT = 120             # LLM 接口单次请求超时（秒，推理模型较慢需留足）
 LLM_TEMPERATURE = 0.2        # 低温度，保证落子决策稳定、可复现
 LLM_MAX_RETRIES = 3          # LLM 返回非法落子时的最大重试次数
+LLM_MAX_TOKENS = 800         # 单次响应最大 token 数（防止推理模型 thinking 过长导致超时）
 
 # 搜索型棋手（negamax + α-β）默认参数
 SEARCH_DEPTH = 4             # 搜索深度（向前看几步）
