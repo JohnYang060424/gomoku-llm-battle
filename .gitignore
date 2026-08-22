@@ -1,0 +1,25 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 密钥 / 本地配置（切勿提交）
+.env
+*.local
+*.env
+
+# 编辑器
+.vscode/
+.idea/
+
+# 对局日志与运行产物
+battles/
+games/
+*.log
+*_raw.json
