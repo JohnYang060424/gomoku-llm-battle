@@ -147,9 +147,9 @@ def main() -> None:
     print(f"系列赛结果（三局两胜，best_of={series.best_of}）")
     print(f"  黑方（第1局）{series.games[0].black_name}")
     print(f"  白方（第1局）{series.games[0].white_name}")
-    # series.wins 已按"选手名"累计（修复前曾误按座位色），按第1局黑白顺序取数
-    b_name = series.games[0].black_name
-    w_name = series.games[0].white_name
+    # series.wins 已按"选手"累计（同名自我对弈时会带 (黑)/(白) 后缀区分），
+    # 直接用它展示比分——比从 games[0] 取原始名更准确。
+    b_name, w_name = list(series.wins.keys())
     print(f"  比分 {b_name} {series.wins.get(b_name, 0)} : {series.wins.get(w_name, 0)} {w_name}")
     for g in series.games:
         print(f"  第 {g.game_index + 1} 局 -> 胜方 {g.winner} ({g.winner_name})，"

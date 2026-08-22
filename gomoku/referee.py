@@ -147,9 +147,17 @@ class Referee:
         # 捕获两名棋手的稳定引用（循环内双方会交换座位，但对象是固定的）
         p_black = self.players[Stone.BLACK]
         p_white = self.players[Stone.WHITE]
-        # 按"选手"累计胜局（而非按座位色），因为双方每局交换先后手，
-        # 同一座位色会被不同选手轮流占据，按座位统计会导致误判。
-        wins = {p_black.name: 0, p_white.name: 0}
+        # 显示名：同名（如同一模型自我对弈）时自动加（黑）/（白）后缀，
+        # 保证 wins 的键唯一——否则 dict 键重合，胜局互相污染、判负提前结束。
+        name_b = p_black.name
+        name_w = p_white.name
+        if name_b == name_w:
+            name_b = f"{name_b} (黑)"
+            name_w = f"{name_w} (白)"
+        # 按"选手对象"累计胜局（而非按名字/座位色）：双方每局交换先后手，
+        # 同一对象才是稳定的选手身份；名字可能冲突（自我对弈），id 不会。
+        win_by_id = {id(p_black): 0, id(p_white): 0}
+        names_by_id = {id(p_black): name_b, id(p_white): name_w}
 
         for i in range(best_of):
             # 交替先后手：第 i 局让两名棋手交换黑白，保证公平
@@ -165,24 +173,28 @@ class Referee:
             game = self.play_game(game_index=i)
             record.games.append(game)
 
-            if game.winner_name:
-                wins[game.winner_name] += 1
+            # 胜者按本局座位映射到对应选手对象（game.winner 是座位色）
+            if game.winner == Stone.BLACK.name:
+                win_by_id[id(black)] += 1
+            elif game.winner == Stone.WHITE.name:
+                win_by_id[id(white)] += 1
 
             # 提前结束：任一方达到获胜局数
-            if wins[p_black.name] >= needed:
-                record.series_winner = p_black.name
-                record.series_winner_name = p_black.name
+            if win_by_id[id(p_black)] >= needed:
+                record.series_winner = name_b
+                record.series_winner_name = name_b
                 break
-            if wins[p_white.name] >= needed:
-                record.series_winner = p_white.name
-                record.series_winner_name = p_white.name
+            if win_by_id[id(p_white)] >= needed:
+                record.series_winner = name_w
+                record.series_winner_name = name_w
                 break
 
         if record.series_winner is None:
             # 打满仍未分（理论不会发生在奇数局），按胜局多者
-            record.series_winner = max(wins, key=wins.get)
-            record.series_winner_name = record.series_winner
-        record.wins = wins
+            winner_id = max(win_by_id, key=lambda k: win_by_id[k])
+            record.series_winner = names_by_id[winner_id]
+            record.series_winner_name = names_by_id[winner_id]
+        record.wins = {name_b: win_by_id[id(p_black)], name_w: win_by_id[id(p_white)]}
         return record
 
     # ------------------------- 日志 -------------------------

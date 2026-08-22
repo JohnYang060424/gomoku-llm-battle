@@ -32,6 +32,28 @@ class TestReferee(unittest.TestCase):
         wins = series.wins[series.series_winner]
         self.assertGreaterEqual(wins, 2)
 
+    def test_same_name_players_series_isolation(self):
+        """同名选手（如同一模型自我对弈）胜局统计不得互相污染。
+
+        回归：v0.2.0 按名字累计 wins，同名时 dict 键重合，
+        导致比分错乱与提前误判冠军；v0.2.1 改为按选手对象 id 统计，
+        同名时显示名自动加 (黑)/(白) 后缀，键保持唯一。
+        """
+        black = HeuristicPlayer("Self")
+        white = HeuristicPlayer("Self", defense_weight=1.2)  # 同名、不同对象
+        ref = Referee(black, white)
+        series = ref.play_series(best_of=3)
+        # wins 键必须是两个（同名也拆成 (黑)/(白)）
+        self.assertEqual(len(series.wins), 2)
+        # 两个键都应存在且值非负
+        for name, score in series.wins.items():
+            self.assertGreaterEqual(score, 0)
+        # 冠军名必在 wins 键中，且其胜局 >= 2（真三局两胜语义）
+        self.assertIn(series.series_winner, series.wins)
+        self.assertGreaterEqual(series.wins[series.series_winner], 2)
+        # 若未提前结束，应恰好打满所需局数或提前一分，不会因同名误判多打/少打
+        self.assertLessEqual(len(series.games), 3)
+
     def test_series_log_is_json_serializable(self):
         black = HeuristicPlayer("Black")
         white = HeuristicPlayer("White")
