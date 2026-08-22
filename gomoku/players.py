@@ -79,6 +79,7 @@ class LLMPlayer(Player):
         temperature: float = config.LLM_TEMPERATURE,
         timeout: int = config.LLM_TIMEOUT,
         max_retries: int = config.LLM_MAX_RETRIES,
+        max_tokens: int = config.LLM_MAX_TOKENS,
     ) -> None:
         super().__init__(name)
         self.model = model
@@ -87,6 +88,7 @@ class LLMPlayer(Player):
         self.temperature = temperature
         self.timeout = timeout
         self.max_retries = max_retries
+        self.max_tokens = max_tokens
         self.raw_log: list = []  # 每手原始返回（content/reasoning/解析结果），供复盘
 
     def choose_move(self, board: Board) -> Move:
@@ -102,6 +104,7 @@ class LLMPlayer(Player):
                     messages,
                     temperature=self.temperature,
                     timeout=self.timeout,
+                    max_tokens=self.max_tokens,
                     return_raw=True,
                 )
             except Exception as exc:  # 网络/接口异常：重试
@@ -123,7 +126,7 @@ class LLMPlayer(Player):
                 "attempt": attempt,
                 "color": self.stone.name if self.stone else None,
                 "content": message.get("content"),
-                "reasoning": message.get("reasoning"),
+                "reasoning": message.get("reasoning") or message.get("reasoning_content"),
                 "parsed": str(move) if move else None,
                 "legal": move is not None,
             })
@@ -200,19 +203,22 @@ _MOVE_RE = re.compile(r"(\d+)\s*,\s*(\d+)|\((\d+)\s*,\s*(\d+)\)")
 
 
 def _parse_move_text(text: str, board: Board) -> Optional[Move]:
-    """从模型/用户输入文本中解析出首个合法的 'row,col' 落子。
+    """从模型/用户输入文本中解析出合法的 'row,col' 落子。
 
-    校验：必须在棋盘范围内，且目标位置为空。否则返回 None。
+    策略：倒序遍历所有匹配——推理模型常在思考过程中提及多个坐标，
+    最终决策通常在响应末尾。取最后一个落在棋盘范围内的空点坐标。
+    兼容 "r,c" 与 "(r,c)" 两种写法。
     """
     if not text:
         return None
-    match = _MOVE_RE.search(text)
-    if not match:
+    matches = list(_MOVE_RE.finditer(text))
+    if not matches:
         return None
-    # 兼容 "r,c" 与 "(r,c)" 两种写法
-    a = match.group(1) if match.group(1) is not None else match.group(3)
-    b = match.group(2) if match.group(2) is not None else match.group(4)
-    r, c = int(a), int(b)
-    if not board.in_bounds(r, c) or not board.is_empty(r, c):
-        return None
-    return Move(r, c)
+    # 倒序检查：优先取响应末尾的坐标（更贴近最终决策）
+    for match in reversed(matches):
+        a = match.group(1) if match.group(1) is not None else match.group(3)
+        b = match.group(2) if match.group(2) is not None else match.group(4)
+        r, c = int(a), int(b)
+        if 0 <= r < board.size and 0 <= c < board.size and board.is_empty(r, c):
+            return Move(r, c)
+    return None
