@@ -67,12 +67,15 @@ class Referee:
         moves: List[str] = []
         winner: Optional[Stone] = None
         reason = ""
+        print(f"--- 第 {game_index + 1} 局开始: 黑={self.players[Stone.BLACK].name} vs 白={self.players[Stone.WHITE].name} ---", flush=True)
 
         while not board.is_game_over():
             player = self.players[board.current]
             move = player.choose_move(board)
             board.place(move)  # 非法落子会抛 GomokuError
             moves.append(str(move))
+            # 每步进度输出（便于实时监控长对局）
+            print(f"  [G{game_index + 1} M{len(moves)}] {player.name}({board.current.opponent.name}) -> {move}", flush=True)
             w = board.winner()
             if w is not None:
                 winner = w
@@ -88,6 +91,7 @@ class Referee:
             self.players[winner_stone].name if winner_stone is not None else None
         )
         winner_str = winner_stone.name if winner_stone is not None else None
+        print(f"--- 第 {game_index + 1} 局结束: 胜方={winner_name}({winner_str}), 原因={reason}, 手数={len(moves)}, 用时={duration}ms ---", flush=True)
 
         rec = GameRecord(
             game_index=game_index,
