@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import math
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from . import config
 from .board import Board, DIRECTIONS, Move, Stone
@@ -118,6 +118,85 @@ def center_bias(r: int, c: int, size: int) -> float:
     """中心偏好：离中心越近得分越高，用于同分时的稳定性 tie-break。"""
     center = (size - 1) / 2
     return -(abs(r - center) + abs(c - center))
+
+
+# 四个正方向（避免重复扫描：每段线只从"最上游"起点数一次）
+_DIRS4 = ((0, 1), (1, 0), (1, 1), (1, -1))
+
+
+def find_threats(board: Board, stone: Stone, min_count: int = 3) -> List[str]:
+    """扫描某方的威胁棋型，返回人类可读的威胁描述列表。
+
+    LLM 棋手常"看得到"对方连子却不封堵（G2 白方眼看黑方斜线三连还去边角），
+    机械裁判扫描出威胁并回灌提示词（象棋"将军!"的对等物），
+    可显著提升 LLM 的防守意识。扫描四个正方向避免重复计数同一条线。
+
+    威胁分级（min_count 及以上）：
+      count>=WIN_COUNT          —— 已连五（本不该出现，防呆）
+      4 连（open>=1）           —— 冲四/活四：下一手必胜，必须立即封堵
+      3 连 open==2              —— 活三：下一手成活四，必须封堵
+      3 连 open==1              —— 眠三（冲三）：值得提醒
+      2 连 open==2（min_count<=2）—— 活二：潜在威胁，提醒
+
+    返回示例："对手(白)在 (5,5)-(6,6)-(7,7) 形成活三（两端可延伸）"
+    """
+    threats: List[str] = []
+    st_name = "黑" if stone is Stone.BLACK else "白"
+    for r in range(board.size):
+        for c in range(board.size):
+            if board.grid[r][c] != stone:
+                continue
+            for dr, dc in _DIRS4:
+                # 只从线段最上游起点开始数，防止同一线重复
+                pr, pc = r - dr, c - dc
+                if board.in_bounds(pr, pc) and board.grid[pr][pc] == stone:
+                    continue
+                # 沿该方向数连子与两端开放
+                count = 0
+                nr, nc = r, c
+                while board.in_bounds(nr, nc) and board.grid[nr][nc] == stone:
+                    count += 1
+                    nr += dr
+                    nc += dc
+                open_pos = board.in_bounds(nr, nc) and board.grid[nr][nc] == Stone.EMPTY
+                # 反方向的一端
+                br, bc = r - dr, c - dc
+                open_neg = board.in_bounds(br, bc) and board.grid[br][bc] == Stone.EMPTY
+                opens = (1 if open_pos else 0) + (1 if open_neg else 0)
+                if count < min_count or opens == 0:
+                    continue
+                # 线段坐标串（起点到终点）
+                pts = []
+                for k in range(count):
+                    pts.append(f"({r + k * dr},{c + k * dc})")
+                seg = "-".join(pts)
+                if count >= config.WIN_COUNT:
+                    grade = "已连五"
+                elif count == 4 and opens == 2:
+                    grade = "活四(必胜)"
+                elif count == 4:
+                    grade = "冲四"
+                elif count == 3 and opens == 2:
+                    grade = "活三"
+                else:
+                    grade = "眠三" if count == 3 else f"{count}连"
+                threats.append(f"对手({st_name})在 {seg} 形成{grade}（{opens}端可延伸）")
+    return threats
+
+
+def threat_hint(board: Board, mover: Stone) -> Optional[str]:
+    """生成轮换方(mover)的对手威胁提示词；无威胁返回 None。
+
+    供裁判在每次落子前调用，拼进 LLM 提示词。仅取最高危的一条，
+    避免多条威胁把上下文撑爆（活四/冲四 > 活三 > 眠三）。
+    """
+    opp = mover.opponent
+    threats = find_threats(board, opp)
+    if not threats:
+        return None
+    # 按危险度排序：含"必胜/冲四"最优先，其次活三，最后眠三
+    priority = lambda t: (0 if ("必胜" in t or "冲四" in t) else 1 if "活三" in t else 2)
+    return sorted(threats, key=priority)[0]
 
 
 class HeuristicPlayer(Player):

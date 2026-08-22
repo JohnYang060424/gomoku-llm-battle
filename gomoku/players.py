@@ -30,6 +30,7 @@ class Player(ABC):
     def __init__(self, name: str) -> None:
         self.name = name
         self.stone: Optional[Stone] = None
+        self.hint: Optional[str] = None  # 裁判注入的对手威胁提示（LLM 棋手拼进提示词）
 
     def set_stone(self, stone: Stone) -> None:
         self.stone = stone
@@ -179,8 +180,15 @@ class LLMPlayer(Player):
             f"你是 {stone_name}。\n"
             f"当前棋盘（左侧数字为 row，顶部数字为 col；. 空 X 黑 O 白）：\n\n"
             f"{board.render()}\n\n"
-            f"请输出你的落子坐标（row,col）："
         )
+        # 机械裁判扫描到的对手威胁告警（象棋\"将军!\"的对等物）：
+        # LLM 常\"看得到\"对手连子却不封堵，由裁判明确指出最高危威胁，强制其应对。
+        if self.hint:
+            user += (
+                f"⚠️ 裁判告警：{self.hint}\n"
+                f"你必须优先应对此威胁（封堵/反制），再考虑自己的进攻。\n\n"
+            )
+        user += "请输出你的落子坐标（row,col）："
         return [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

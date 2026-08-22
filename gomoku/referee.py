@@ -16,6 +16,7 @@ from typing import List, Optional
 
 from . import config
 from .board import Board, Move, Stone
+from .heuristics import threat_hint
 from .players import Player
 from .sgf import board_to_sgf
 
@@ -91,6 +92,14 @@ class Referee:
 
         while not board.is_game_over():
             player = self.players[board.current]
+            # 机械裁判扫描对手威胁，注入提示（LLM 棋手拼进提示词，其余棋手忽略）
+            hint = threat_hint(board, board.current)
+            player.hint = hint
+            # 威胁告警也实时落盘，复盘时能对齐"哪一步该防没防"
+            if hint:
+                self._live({"event": "threat", "game_index": game_index,
+                            "ply": len(moves) + 1, "mover": board.current.name,
+                            "hint": hint})
             move = player.choose_move(board)
             board.place(move)  # 非法落子会抛 GomokuError
             moves.append(str(move))
