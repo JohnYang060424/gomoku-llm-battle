@@ -68,17 +68,18 @@ def build_player(spec: str, name: str, color: Stone):
         # 这样即可让"任意两个 LLM（含跨服务商）"互搏，或"单个 LLM 自我对弈"。
         if "|" in arg:
             parts = arg.split("|")
-            api_base = (parts[0].strip() if len(parts) > 0 else "") or os.environ.get("LLM_API_BASE", "")
-            model = (parts[1].strip() if len(parts) > 1 else "") or os.environ.get("LLM_MODEL", "")
-            api_key = (parts[2].strip() if len(parts) > 2 else "") or os.environ.get("LLM_API_KEY", "")
+            api_base = (parts[0].strip() if len(parts) > 0 and parts[0].strip() else "") or os.environ.get("LLM_API_BASE", "")
+            model = (parts[1].strip() if len(parts) > 1 and parts[1].strip() else "") or os.environ.get("LLM_MODEL", "")
+            # key 段可空：本地 vLLM/Ollama 等无鉴权端点允许省略（不用或链回退，避免空串拦截）
+            api_key = (parts[2].strip() if len(parts) > 2 and parts[2].strip() else "") or os.environ.get("LLM_API_KEY", "")
         else:
             model = arg.strip() or os.environ.get("LLM_MODEL", "")
             api_base = os.environ.get("LLM_API_BASE", "")
             api_key = os.environ.get("LLM_API_KEY", "")
-        if not (model and api_base and api_key):
+        if not (model and api_base):
             raise SystemExit(
                 "使用 llm 棋手需提供 model（规格内或 LLM_MODEL），"
-                "以及 LLM_API_BASE / LLM_API_KEY（规格内或环境变量）"
+                "以及 LLM_API_BASE（规格内或环境变量）；api_key 仅鉴权端点需要"
             )
         p = LLMPlayer(name, model, api_base, api_key)
     else:
@@ -96,12 +97,23 @@ def main() -> None:
     parser.add_argument("--best-of", type=int, default=3, help="系列赛局数（奇数）")
     parser.add_argument("--out", default=os.path.join(ROOT, "games", "series.json"),
                         help="系列赛 JSON 日志输出路径")
+    parser.add_argument("--live-log", default=None,
+                        help="逐手实时落盘路径（JSONL，默认 <out 同目录>/live_log.jsonl；"
+                             "给 off 关闭）")
     args = parser.parse_args()
 
     black = build_player(args.black, name=args.black_name or args.black, color=Stone.BLACK)
     white = build_player(args.white, name=args.white_name or args.white, color=Stone.WHITE)
 
-    referee = Referee(black, white)
+    # 实时落盘默认与 series.json 同目录，便于观战与崩溃挽留
+    live_log = args.live_log
+    if live_log is None:
+        out_dir = os.path.dirname(os.path.abspath(args.out)) or "."
+        live_log = os.path.join(out_dir, "live_log.jsonl")
+    if live_log.lower() == "off":
+        live_log = None
+
+    referee = Referee(black, white, live_log_path=live_log)
     try:
         series = referee.play_series(best_of=args.best_of)
     except Exception as exc:

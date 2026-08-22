@@ -54,11 +54,28 @@ class SeriesRecord:
 class Referee:
     """裁判：驱动一局或一系列对局。"""
 
-    def __init__(self, black: Player, white: Player, board_size: int = config.BOARD_SIZE) -> None:
+    def __init__(
+        self,
+        black: Player,
+        white: Player,
+        board_size: int = config.BOARD_SIZE,
+        live_log_path: Optional[str] = None,
+    ) -> None:
         self.players = {Stone.BLACK: black, Stone.WHITE: white}
         black.set_stone(Stone.BLACK)
         white.set_stone(Stone.WHITE)
         self.board_size = board_size
+        self.live_log_path = live_log_path  # 逐手实时落盘（JSONL），中途可监控/崩溃可挽留
+
+    # ------------------------- 实时落盘 -------------------------
+    def _live(self, rec: dict) -> None:
+        """追加一条实时对局记录（JSONL）。不 buffering、直接落盘：长对局中进程崩溃
+        或被人为中断，已走的每一步都留有痕迹，可监控、可复盘、可恢复。
+        """
+        if not self.live_log_path:
+            return
+        with open(self.live_log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
     # ------------------------- 单局 -------------------------
     def play_game(self, game_index: int = 0) -> GameRecord:
@@ -68,6 +85,9 @@ class Referee:
         winner: Optional[Stone] = None
         reason = ""
         print(f"--- 第 {game_index + 1} 局开始: 黑={self.players[Stone.BLACK].name} vs 白={self.players[Stone.WHITE].name} ---", flush=True)
+        self._live({"event": "game_start", "game_index": game_index,
+                    "black": self.players[Stone.BLACK].name,
+                    "white": self.players[Stone.WHITE].name})
 
         while not board.is_game_over():
             player = self.players[board.current]
@@ -76,6 +96,10 @@ class Referee:
             moves.append(str(move))
             # 每步进度输出（便于实时监控长对局）
             print(f"  [G{game_index + 1} M{len(moves)}] {player.name}({board.current.opponent.name}) -> {move}", flush=True)
+            # 逐手实时落盘（JSONL）：进程崩溃/中断也不丢已走步骤
+            self._live({"event": "move", "game_index": game_index,
+                        "ply": len(moves), "stone": board.current.opponent.name,
+                        "move": str(move), "player": player.name})
             w = board.winner()
             if w is not None:
                 winner = w
@@ -92,6 +116,9 @@ class Referee:
         )
         winner_str = winner_stone.name if winner_stone is not None else None
         print(f"--- 第 {game_index + 1} 局结束: 胜方={winner_name}({winner_str}), 原因={reason}, 手数={len(moves)}, 用时={duration}ms ---", flush=True)
+        self._live({"event": "game_end", "game_index": game_index,
+                    "winner": winner_str, "winner_name": winner_name,
+                    "reason": reason, "plies": len(moves), "duration_ms": duration})
 
         rec = GameRecord(
             game_index=game_index,

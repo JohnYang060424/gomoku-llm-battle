@@ -58,6 +58,7 @@ python scripts/self_play.py \
 
 每场对局自动产出：
 - `series.json` — 三局全过程、每手落子、胜负判定、SGF
+- `live_log.jsonl` — **逐手实时落盘**（JSONL）：每步即时追加（含开局/终局事件），长对局可中途监控、崩溃不丢步骤
 - `black_raw.json` / `white_raw.json` — 黑/白每手原始返回（`content` / `reasoning` / 解析结果 / 合法性），供复盘分析
 
 ## 架构

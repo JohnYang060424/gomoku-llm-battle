@@ -40,13 +40,17 @@ def call_chat_completion(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    # vLLM 后端严格执行 enable_thinking：不显式传则按服务端默认，
+    # 显式开启保证 27B 等推理模型带思考链下棋（棋力显著更强）。
+    if getattr(config, "LLM_ENABLE_THINKING", True):
+        payload["chat_template_kwargs"] = {"enable_thinking": True}
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=data,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
+            **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
         },
         method="POST",
     )

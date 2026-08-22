@@ -1,0 +1,41 @@
+# Changelog
+
+本文件记录 gomoku-llm-battle 的版本变更。
+
+## v0.2.0（2026-08-22）
+
+与超算 Qwen3.8-27B（vLLM 后端）实战对接的适配与完善。27B 带思考链下棋，棋力依赖思考，需为推理模型留足输出预算。
+
+### 新增
+
+- **逐手实时落盘 `live_log.jsonl`**：每步（含开局/终局事件）即时追加 JSONL——
+  长对局可中途监控、进程崩溃/中断不丢已走步骤（Roadmap 条项落地）。
+  默认与 `--out` 同目录，`--live-log` 可指定路径，`--live-log off` 关闭。
+- **`LLM_ENABLE_THINKING` 配置开关**：向 vLLM 等后端显式传
+  `chat_template_kwargs.enable_thinking=true`（vLLM 严格执行该参数，
+  开启后 27B 棋力显著更强）。
+
+### 修复
+
+- **`LLM_MAX_TOKENS` 800 → 4096**：推理模型思考链需要输出预算，
+  800 会把思考截断在坐标出现之前，导致解析失败/保底落子频繁触发。
+- **`LLM_TIMEOUT` 120 → 300 秒**：27B 带思考链单步实测 10-120s，原超时偏紧。
+- **无鉴权端点支持空 api_key**：`llm:<base>|<model>|` 空 key 段不再被
+  `or 环境变量` 链回退成空串拦截；`call_chat_completion` 在 key 为空时
+  不发送 `Authorization` 头（本地 vLLM/Ollama 无需鉴权，避免空 Bearer 被拒）。
+- **坐标正则兼容全角标点**：`（7，7）` / `7，7` 等中文输入也能解析
+  （Qwen 思考链里易出现全角括号/逗号）。
+
+### 实测
+
+- 超算 qwen3.8-27b（vllm-dcu TP=2，usa-ser2:30632 隧道）：
+  空盘首手 9.2s 走出天元 7,7；自我对弈（黑 7,7 → 白 7,8 → 黑 7,5 → 白 7,6）中央缠斗正常，走法全部合法。
+
+## v0.1.0（初始发布）
+
+- 15×15 五子棋规则引擎（连五/长连/和棋）、统一 Player 接口
+- LLMPlayer（OpenAI 兼容，reasoning 字段双路解析 + 截断抢救 + 保底落子）
+- SearchPlayer（negamax+α-β）、HeuristicPlayer（贪心基线）、ConsolePlayer
+- 机械裁判 Referee：单局 / 三局两胜系列赛、交替先后手、提前结束
+- series.json（含 SGF）+ black/white_raw.json 复盘日志
+- 零第三方依赖，31 项单元测试

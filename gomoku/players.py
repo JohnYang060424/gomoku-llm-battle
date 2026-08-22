@@ -199,7 +199,8 @@ class LLMPlayer(Player):
 
 
 # ------------------------- 坐标解析工具 -------------------------
-_MOVE_RE = re.compile(r"(\d+)\s*,\s*(\d+)|\((\d+)\s*,\s*(\d+)\)")
+# 兼容半角/全角括号、空格变体："7,7" "(7,7)" "（7，7）" "7，7"
+_MOVE_RE = re.compile(r"[（(]?\s*(\d{1,2})\s*[,，]\s*(\d{1,2})\s*[)）]?")
 
 
 def _parse_move_text(text: str, board: Board) -> Optional[Move]:
